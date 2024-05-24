@@ -1,4 +1,4 @@
---upgrade streamlit
+streamlit
 pandas
 numpy
 gdown
