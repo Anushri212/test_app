@@ -43,26 +43,29 @@
 
 import streamlit as st
 import pandas as pd
+import gdown
 
-# URL of the CSV file (convert Google Drive link to direct download link)
+# URL of the Google Drive file
 file_id = '1INqhOyGt4LKM8Fiooj8aOvIqJDK-pCoK'
-csv_url = f'https://drive.google.com/uc?id={file_id}'
+gdrive_url = f'https://drive.google.com/uc?id={file_id}'
 
+# Function to fetch and read the CSV data
 @st.cache
 def load_data(url):
-    return pd.read_csv(url)
+    output = 'purchase_m1.csv'
+    gdown.download(url, output, quiet=False)
+    return pd.read_csv(output)
 
 # Load the data
-df = load_data(csv_url)
+df = load_data(gdrive_url)
 
 # Display the data
-st.title("CSV Data from URL")
+st.title("CSV Data from Google Drive")
 st.write("Here is the dataset:")
 st.dataframe(df)
 
 st.write("--------shape-----------")
 st.write(df.shape)
 st.write("First 5 rows of the dataset:")
-st.write(df.head(5))
-
+st.dataframe(df.head(5))
 
