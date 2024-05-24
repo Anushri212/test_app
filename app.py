@@ -44,8 +44,9 @@
 import streamlit as st
 import pandas as pd
 
-# URL of the CSV file
-csv_url = https://drive.google.com/file/d/1INqhOyGt4LKM8Fiooj8aOvIqJDK-pCoK/view?usp=drive_link'
+# URL of the CSV file (convert Google Drive link to direct download link)
+file_id = '1INqhOyGt4LKM8Fiooj8aOvIqJDK-pCoK'
+csv_url = f'https://drive.google.com/uc?id={file_id}'
 
 @st.cache
 def load_data(url):
@@ -63,4 +64,5 @@ st.write("--------shape-----------")
 st.write(df.shape)
 st.write("First 5 rows of the dataset:")
 st.write(df.head(5))
+
 
