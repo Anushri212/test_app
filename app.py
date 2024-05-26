@@ -85,13 +85,14 @@ def load_data(url):
 
 # Load the data
 df = load_data(gdrive_url)
+print(df.shape)
+print(df.head(5))
+# # Display the data
+# st.title("CSV Data from Google Drive")
+# st.write("Here is the dataset:")
+# st.dataframe(df)
 
-# Display the data
-st.title("CSV Data from Google Drive")
-st.write("Here is the dataset:")
-st.dataframe(df)
-
-st.write("--------shape-----------")
-st.write(df.shape)
-st.write("First 5 rows of the dataset:")
-st.dataframe(df.head(5))
+# st.write("--------shape-----------")
+# st.write(df.shape)
+# st.write("First 5 rows of the dataset:")
+# st.dataframe(df.head(5))
