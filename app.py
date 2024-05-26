@@ -85,14 +85,11 @@ def load_data(url):
 
 # Load the data
 df = load_data(gdrive_url)
+
+# Display the DataFrame shape and head(5) in the console
 print(df.shape)
 print(df.head(5))
-# # Display the data
-# st.title("CSV Data from Google Drive")
-# st.write("Here is the dataset:")
-# st.dataframe(df)
 
-# st.write("--------shape-----------")
-# st.write(df.shape)
-# st.write("First 5 rows of the dataset:")
-# st.dataframe(df.head(5))
+# Display the head(5) of the DataFrame in Streamlit
+st.write("### DataFrame Head (first 5 rows)")
+st.write(df.head(5))
