@@ -74,12 +74,14 @@ import pandas as pd
 import gdown
 
 # URL of the Google Drive file
-file_id = '1INqhOyGt4LKM8Fiooj8aOvIqJDK-pCoK'
+# file_id = '1INqhOyGt4LKM8Fiooj8aOvIqJDK-pCoK'
+file_id = '1dHebTpV8IlzXdmGebg53-K93RlhP-KWd'
 gdrive_url = f'https://drive.google.com/uc?id={file_id}'
 
 # Function to fetch and read the CSV data
 def load_data(url):
-    output = 'purchase_m1.csv'
+    # output = 'purchase_m1.csv'
+    output = '15_count.csv'
     gdown.download(url, output, quiet=False)
     return pd.read_csv(output)
 
