@@ -854,15 +854,64 @@ def page_build_and_train():
         model.save("final_model.h5")
         st.write("Final model saved.")
 
+# Page 4: Evaluate model and make predictions
+def page_evaluate_and_predict():
+    if 'model' not in st.session_state:
+        st.warning("Please complete the model training step first.")
+        return
+
+    st.header("Step 4: Evaluate Model and Make Predictions")
+
+    # Evaluate the model
+    st.subheader("Evaluate Model")
+    loss = st.session_state['model'].evaluate(st.session_state['testX'], st.session_state['testY'])
+    st.write(f"Test Loss: {loss}")
+
+    # Make predictions
+    st.subheader("Make Predictions")
+    random_msisdns = st.multiselect("Select MSISDNs for Prediction",
+                                    st.session_state['df'][st.session_state['misisdn_column']].unique(),
+                                    default=random.sample(
+                                        list(st.session_state['df'][st.session_state['misisdn_column']].unique()), 5))
+
+    for msisdn in random_msisdns:
+        group = st.session_state['df'][st.session_state['df'][st.session_state['misisdn_column']] == msisdn]
+        group = group.sort_values(st.session_state['event_column_date'])
+        lstm_data = group[st.session_state['columns_to_scale']]
+        if len(lstm_data) >= st.session_state['sequence_length'] + st.session_state['output_sequence_length']:
+            X_test, y_test = create_sequences(lstm_data, st.session_state['sequence_length'],
+                                              st.session_state['output_sequence_length'],
+                                              st.session_state['df'].columns.get_loc(
+                                                  st.session_state['target_column']))
+            predictions = st.session_state['model'].predict(X_test)
+            predictions = st.session_state['scaler'].inverse_transform(
+                np.hstack([predictions,
+                           np.zeros((predictions.shape[0], len(st.session_state['columns_to_scale']) - 1))]))[:, 0]
+            actuals = st.session_state['scaler'].inverse_transform(
+                np.hstack(
+                    [y_test, np.zeros((y_test.shape[0], len(st.session_state['columns_to_scale']) - 1))]))[:, 0]
+
+            plt.figure(figsize=(10, 5))
+            plt.plot(group[st.session_state['event_column_date']].iloc[-len(predictions):], predictions,
+                     label='Predicted')
+            plt.plot(group[st.session_state['event_column_date']].iloc[-len(actuals):], actuals, label='Actual')
+            plt.title(f"Predictions for MSISDN: {msisdn}")
+            plt.xlabel("Date")
+            plt.ylabel("Total Revenue")
+            plt.legend()
+            st.pyplot(plt)
+
 # Main app logic
 def main():
     st.sidebar.title("LSTM Time Series Forecasting")
-    page = st.sidebar.radio("Navigation", ["Load and Preprocess Data", "Build and Train Model"])
+    page = st.sidebar.radio("Navigation", ["Load and Preprocess Data", "Build and Train Model", "Evaluate Model and Make Predictions"])
 
     if page == "Load and Preprocess Data":
         page_load_and_preprocess()
     elif page == "Build and Train Model":
         page_build_and_train()
+    elif page == "Evaluate Model and Make Predictions":
+        page_evaluate_and_predict()
 
 if __name__ == "__main__":
     main()
