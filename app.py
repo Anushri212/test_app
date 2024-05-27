@@ -830,11 +830,11 @@ def page_build_and_train():
         
         model = Sequential()
         for i in range(num_layers - 1):
-            model.add(LSTM(units=lstm_units[i], return_sequences=True, activation=activation_function, input_shape=(trainX.shape[1], trainX.shape[2])))
+            model.add(LSTM(units=lstm_units[i], return_sequences=True, activation=activation_function, input_shape=(st.session_state['trainX'].shape[1], st.session_state['trainX'].shape[2])))
             model.add(Dropout(dropout_rate))
         model.add(LSTM(units=lstm_units[-1], activation=activation_function))
         model.add(Dropout(dropout_rate))
-        model.add(Dense(trainY.shape[1]))
+        model.add(Dense(st.session_state['trainY'].shape[1]))
 
         model.compile(optimizer=optimizer, loss=loss_function)
         
@@ -848,7 +848,7 @@ def page_build_and_train():
             st.write(f"Resuming training from checkpoint: {latest_checkpoint}")
             model.load_weights(latest_checkpoint)
         
-        model.fit(trainX, trainY, epochs=epochs, callbacks=[custom_callback], verbose=2)
+        model.fit(st.session_state['trainX'], st.session_state['trainY'], epochs=epochs, callbacks=[custom_callback], verbose=2)
 
         # Save the final model
         model.save("final_model.h5")
