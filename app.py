@@ -314,7 +314,7 @@ def page_build_and_train():
         except Exception as e:
             st.write(f"Error training model: {e}")
 
-# Page 3: Evaluate model
+# Function to evaluate model
 def page_evaluate_model():
     if 'model' not in st.session_state:
         st.warning("Please train the model first.")
@@ -328,15 +328,21 @@ def page_evaluate_model():
     scaler = st.session_state['scaler']
     target_column = st.session_state['target_column']
 
-    # Predict and inverse scale
+    # Predict
     predicted = model.predict(testX)
-    predicted_inverse = scaler.inverse_transform(predicted)
+
+    # Create a dummy array to match the expected shape for inverse transform
+    dummy_array = np.zeros((predicted.shape[0], len(st.session_state['columns_to_scale'])))
+    dummy_array[:, 0] = predicted[:, 0]  # Assuming target column is the first column
+
+    # Inverse transform only the relevant column
+    predicted_inverse = scaler.inverse_transform(dummy_array)[:, 0]
     actual_inverse = scaler.inverse_transform(testY)
 
     # Plot predictions vs actuals
     fig, ax = plt.subplots()
     ax.plot(actual_inverse[:100, 0], label='Actual')
-    ax.plot(predicted_inverse[:100, 0], label='Predicted')
+    ax.plot(predicted_inverse[:100], label='Predicted')
     ax.set_title("Predicted vs Actual Values")
     ax.legend()
 
@@ -346,7 +352,7 @@ def page_evaluate_model():
 
 # Main function to run the Streamlit app
 def main():
-    st.sidebar.title("Navigation - LSTM Time Series Forecasting")
+    st.sidebar.title("LSTM Time Series Forecasting")
     page = st.sidebar.selectbox("Select a Page", ["Load Dataset and Preprocess Data", "Build and Train Model", "Evaluate Model"])
 
     if page == "Load Dataset and Preprocess Data":
@@ -358,4 +364,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
