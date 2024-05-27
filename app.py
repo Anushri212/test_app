@@ -823,8 +823,8 @@ def page_build_and_train():
     checkpoint_dir = "model_checkpoints"
     if not os.path.exists(checkpoint_dir):
         os.makedirs(checkpoint_dir)
-    checkpoint_path = os.path.join(checkpoint_dir, "model_epoch_{epoch:02d}.h5")
-
+    checkpoint_path = os.path.join(checkpoint_dir, "model_epoch_{epoch:02d}.weights.h5")
+    
     if st.button("Train Model"):
         st.write("Starting model training...")  # Log message to indicate training has started
         try:
@@ -841,31 +841,83 @@ def page_build_and_train():
                     else:
                         model.add(LSTM(lstm_units[i], return_sequences=True, activation=activation_function))
                 model.add(Dropout(dropout_rate))
-
+    
             model.add(Dense(st.session_state['output_sequence_length']))
             model.compile(loss=loss_function, optimizer=optimizer)
-
+    
             # Check for existing weights and load if found
             last_epoch = get_last_saved_epoch(checkpoint_dir)
             if last_epoch is not None:
-                latest_checkpoint = os.path.join(checkpoint_dir, f"model_epoch_{last_epoch:02d}.h5")
+                latest_checkpoint = os.path.join(checkpoint_dir, f"model_epoch_{last_epoch:02d}.weights.h5")
                 model.load_weights(latest_checkpoint)
                 st.write(f"Resuming training from epoch {last_epoch + 1}...")
-
+    
             # Define ModelCheckpoint to save model weights to the local directory
             model_checkpoint_callback = ModelCheckpoint(checkpoint_path, save_weights_only=True, save_best_only=False, save_freq='epoch')
             early_stopping_callback = EarlyStopping(monitor='val_loss', patience=3)
             epoch_time_callback = EpochTimeCallback()
-
+    
             initial_epoch = last_epoch + 1 if last_epoch is not None else 0
             history = model.fit(st.session_state['trainX'], st.session_state['trainY'], initial_epoch=initial_epoch, epochs=epochs, batch_size=batch_size, validation_split=0.1, callbacks=[early_stopping_callback, model_checkpoint_callback, epoch_time_callback])
-
+    
             st.write("Model training completed.")
             st.session_state['model'] = model
             st.session_state['history'] = history.history
-
+    
         except Exception as e:
             st.write(f"Error training model: {e}")
+
+
+
+    
+
+    # # Save each epoch's model weights with a unique filename
+    # checkpoint_dir = "model_checkpoints"
+    # if not os.path.exists(checkpoint_dir):
+    #     os.makedirs(checkpoint_dir)
+    # checkpoint_path = os.path.join(checkpoint_dir, "model_epoch_{epoch:02d}.h5")
+
+    # if st.button("Train Model"):
+    #     st.write("Starting model training...")  # Log message to indicate training has started
+    #     try:
+    #         model = Sequential()
+    #         for i in range(num_layers):
+    #             if i == 0:
+    #                 if bidirectional:
+    #                     model.add(Bidirectional(LSTM(lstm_units[i], return_sequences=True, activation=activation_function), input_shape=(st.session_state['trainX'].shape[1], st.session_state['trainX'].shape[2])))
+    #                 else:
+    #                     model.add(LSTM(lstm_units[i], return_sequences=True, activation=activation_function, input_shape=(st.session_state['trainX'].shape[1], st.session_state['trainX'].shape[2])))
+    #             else:
+    #                 if bidirectional:
+    #                     model.add(Bidirectional(LSTM(lstm_units[i], return_sequences=True, activation=activation_function)))
+    #                 else:
+    #                     model.add(LSTM(lstm_units[i], return_sequences=True, activation=activation_function))
+    #             model.add(Dropout(dropout_rate))
+
+    #         model.add(Dense(st.session_state['output_sequence_length']))
+    #         model.compile(loss=loss_function, optimizer=optimizer)
+
+    #         # Check for existing weights and load if found
+    #         last_epoch = get_last_saved_epoch(checkpoint_dir)
+    #         if last_epoch is not None:
+    #             latest_checkpoint = os.path.join(checkpoint_dir, f"model_epoch_{last_epoch:02d}.h5")
+    #             model.load_weights(latest_checkpoint)
+    #             st.write(f"Resuming training from epoch {last_epoch + 1}...")
+
+    #         # Define ModelCheckpoint to save model weights to the local directory
+    #         model_checkpoint_callback = ModelCheckpoint(checkpoint_path, save_weights_only=True, save_best_only=False, save_freq='epoch')
+    #         early_stopping_callback = EarlyStopping(monitor='val_loss', patience=3)
+    #         epoch_time_callback = EpochTimeCallback()
+
+    #         initial_epoch = last_epoch + 1 if last_epoch is not None else 0
+    #         history = model.fit(st.session_state['trainX'], st.session_state['trainY'], initial_epoch=initial_epoch, epochs=epochs, batch_size=batch_size, validation_split=0.1, callbacks=[early_stopping_callback, model_checkpoint_callback, epoch_time_callback])
+
+    #         st.write("Model training completed.")
+    #         st.session_state['model'] = model
+    #         st.session_state['history'] = history.history
+
+    #     except Exception as e:
+    #         st.write(f"Error training model: {e}")
 
 # Page 3: Evaluate model
 def page_evaluate():
