@@ -667,22 +667,29 @@ import numpy as np
 from sklearn.preprocessing import RobustScaler
 from sklearn.model_selection import train_test_split
 from keras.models import Sequential, load_model
-from keras.layers import LSTM, Dropout, Dense, Bidirectional
+from keras.layers import LSTM, Dropout, Dense, Bidirectional, Attention
 from keras.callbacks import EarlyStopping, Callback, ModelCheckpoint
 import matplotlib.pyplot as plt
 import time
 import os
+import random
 import gdown
 
-# Custom callback to log epoch times
+# Custom callback to log epoch times and save epoch weights to Google Drive
 class EpochTimeCallback(Callback):
-    def on_epoch_begin(self, epoch, logs=None):
-        self.epoch_start_time = time.time()
-
     def on_epoch_end(self, epoch, logs=None):
-        epoch_time = time.time() - self.epoch_start_time
+        epoch_time = time.time() - self.model.start_time
         logs['epoch_time'] = epoch_time
         st.write(f"Epoch {epoch + 1} time: {epoch_time:.2f} seconds")
+        self.save_epoch_to_drive(epoch + 1)  # Save after each epoch
+
+    def save_epoch_to_drive(self, epoch):
+        local_path = f'model_checkpoint_epoch_{epoch:02d}.h5'
+        gdrive_path = f'https://drive.google.com/drive/folders/1l3-GdwfNBTJUnYOmRD3SmfGT1GEL4jr_?usp=sharing/model_checkpoint_epoch_{epoch:02d}.h5'
+        self.model.save_weights(local_path)
+        # Upload the file to Google Drive
+        gdown.upload(local_path, gdrive_path, quiet=False)
+        st.write(f"Epoch {epoch + 1} weights saved to: {gdrive_path}")
 
 # Function to create sequences
 def create_sequences(data, sequence_length, output_sequence_length, target_column):
@@ -741,15 +748,13 @@ def load_data_from_gdrive(file_id):
         gdown.download(url, output, quiet=False)
     return pd.read_csv(output)
 
-# Function to get the last saved epoch
-def get_last_saved_epoch(checkpoint_dir):
-    if not os.path.exists(checkpoint_dir):
-        return None
-    checkpoint_files = [f for f in os.listdir(checkpoint_dir) if f.startswith("model_epoch_") and f.endswith(".h5")]
-    if not checkpoint_files:
-        return None
-    last_epoch = max(int(f.split("_")[2].split(".")[0]) for f in checkpoint_files)
-    return last_epoch
+# Function to download the latest checkpoint from Google Drive
+def load_latest_checkpoint():
+    files = gdown.download_folder('https://drive.google.com/drive/folders/1l3-GdwfNBTJUnYOmRD3SmfGT1GEL4jr_?usp=sharing')
+    if files:
+        latest_file = max(files, key=os.path.getctime)
+        return latest_file
+    return None
 
 # Page 1: Load dataset and preprocess data
 def page_load_and_preprocess():
@@ -815,154 +820,52 @@ def page_build_and_train():
     activation_function = st.selectbox("Activation Function", ["relu", "tanh"])
     loss_function = st.selectbox("Loss Function", ["mse", "mae"])
     optimizer = st.selectbox("Optimizer", ["adam", "sgd"])
-    epochs = st.number_input("Epochs", min_value=1, max_value=100, value=15)
-    batch_size = st.number_input("Batch Size", min_value=1, max_value=1000, value=600)
-    bidirectional = st.checkbox("Bidirectional LSTM")
-
-    # Save each epoch's model weights with a unique filename
-    checkpoint_dir = "model_checkpoints"
-    if not os.path.exists(checkpoint_dir):
-        os.makedirs(checkpoint_dir)
-    checkpoint_path = os.path.join(checkpoint_dir, "model_epoch_{epoch:02d}.weights.h5")
+    epochs = st.number_input("Epochs", min_value=1, value=100)
     
-    if st.button("Train Model"):
-        st.write("Starting model training...")  # Log message to indicate training has started
-        try:
-            model = Sequential()
-            for i in range(num_layers):
-                if i == 0:
-                    if bidirectional:
-                        model.add(Bidirectional(LSTM(lstm_units[i], return_sequences=True, activation=activation_function), input_shape=(st.session_state['trainX'].shape[1], st.session_state['trainX'].shape[2])))
-                    else:
-                        model.add(LSTM(lstm_units[i], return_sequences=True, activation=activation_function, input_shape=(st.session_state['trainX'].shape[1], st.session_state['trainX'].shape[2])))
-                else:
-                    if bidirectional:
-                        model.add(Bidirectional(LSTM(lstm_units[i], return_sequences=True, activation=activation_function)))
-                    else:
-                        model.add(LSTM(lstm_units[i], return_sequences=True, activation=activation_function))
-                model.add(Dropout(dropout_rate))
+    st.session_state['model'] = None  # Initialize the model
+    st.session_state['start_time'] = None  # Initialize the start time
     
-            model.add(Dense(st.session_state['output_sequence_length']))
-            model.compile(loss=loss_function, optimizer=optimizer)
-    
-            # Check for existing weights and load if found
-            last_epoch = get_last_saved_epoch(checkpoint_dir)
-            if last_epoch is not None:
-                latest_checkpoint = os.path.join(checkpoint_dir, f"model_epoch_{last_epoch:02d}.weights.h5")
-                model.load_weights(latest_checkpoint)
-                st.write(f"Resuming training from epoch {last_epoch + 1}...")
-    
-            # Define ModelCheckpoint to save model weights to the local directory
-            model_checkpoint_callback = ModelCheckpoint(checkpoint_path, save_weights_only=True, save_best_only=False, save_freq='epoch')
-            early_stopping_callback = EarlyStopping(monitor='val_loss', patience=3)
-            epoch_time_callback = EpochTimeCallback()
-    
-            initial_epoch = last_epoch + 1 if last_epoch is not None else 0
-            history = model.fit(st.session_state['trainX'], st.session_state['trainY'], initial_epoch=initial_epoch, epochs=epochs, batch_size=batch_size, validation_split=0.1, callbacks=[early_stopping_callback, model_checkpoint_callback, epoch_time_callback])
-    
-            st.write("Model training completed.")
-            st.session_state['model'] = model
-            st.session_state['history'] = history.history
-    
-        except Exception as e:
-            st.write(f"Error training model: {e}")
+    if st.button("Build and Train Model"):
+        st.session_state['start_time'] = time.time()
+        
+        model = Sequential()
+        for i in range(num_layers - 1):
+            model.add(LSTM(units=lstm_units[i], return_sequences=True, activation=activation_function, input_shape=(trainX.shape[1], trainX.shape[2])))
+            model.add(Dropout(dropout_rate))
+        model.add(LSTM(units=lstm_units[-1], activation=activation_function))
+        model.add(Dropout(dropout_rate))
+        model.add(Dense(trainY.shape[1]))
 
+        model.compile(optimizer=optimizer, loss=loss_function)
+        
+        # Initialize custom callback
+        custom_callback = EpochTimeCallback()
+        custom_callback.model = model
+        
+        # Resume training from the last saved epoch if available
+        latest_checkpoint = load_latest_checkpoint()
+        if latest_checkpoint:
+            st.write(f"Resuming training from checkpoint: {latest_checkpoint}")
+            model.load_weights(latest_checkpoint)
+        
+        model.fit(trainX, trainY, epochs=epochs, callbacks=[custom_callback], verbose=2)
 
+        # Save the final model
+        model.save("final_model.h5")
+        st.write("Final model saved.")
 
-    
+# Main app logic
+def main():
+    st.sidebar.title("LSTM Time Series Forecasting")
+    page = st.sidebar.radio("Navigation", ["Load and Preprocess Data", "Build and Train Model"])
 
-    # # Save each epoch's model weights with a unique filename
-    # checkpoint_dir = "model_checkpoints"
-    # if not os.path.exists(checkpoint_dir):
-    #     os.makedirs(checkpoint_dir)
-    # checkpoint_path = os.path.join(checkpoint_dir, "model_epoch_{epoch:02d}.h5")
+    if page == "Load and Preprocess Data":
+        page_load_and_preprocess()
+    elif page == "Build and Train Model":
+        page_build_and_train()
 
-    # if st.button("Train Model"):
-    #     st.write("Starting model training...")  # Log message to indicate training has started
-    #     try:
-    #         model = Sequential()
-    #         for i in range(num_layers):
-    #             if i == 0:
-    #                 if bidirectional:
-    #                     model.add(Bidirectional(LSTM(lstm_units[i], return_sequences=True, activation=activation_function), input_shape=(st.session_state['trainX'].shape[1], st.session_state['trainX'].shape[2])))
-    #                 else:
-    #                     model.add(LSTM(lstm_units[i], return_sequences=True, activation=activation_function, input_shape=(st.session_state['trainX'].shape[1], st.session_state['trainX'].shape[2])))
-    #             else:
-    #                 if bidirectional:
-    #                     model.add(Bidirectional(LSTM(lstm_units[i], return_sequences=True, activation=activation_function)))
-    #                 else:
-    #                     model.add(LSTM(lstm_units[i], return_sequences=True, activation=activation_function))
-    #             model.add(Dropout(dropout_rate))
-
-    #         model.add(Dense(st.session_state['output_sequence_length']))
-    #         model.compile(loss=loss_function, optimizer=optimizer)
-
-    #         # Check for existing weights and load if found
-    #         last_epoch = get_last_saved_epoch(checkpoint_dir)
-    #         if last_epoch is not None:
-    #             latest_checkpoint = os.path.join(checkpoint_dir, f"model_epoch_{last_epoch:02d}.h5")
-    #             model.load_weights(latest_checkpoint)
-    #             st.write(f"Resuming training from epoch {last_epoch + 1}...")
-
-    #         # Define ModelCheckpoint to save model weights to the local directory
-    #         model_checkpoint_callback = ModelCheckpoint(checkpoint_path, save_weights_only=True, save_best_only=False, save_freq='epoch')
-    #         early_stopping_callback = EarlyStopping(monitor='val_loss', patience=3)
-    #         epoch_time_callback = EpochTimeCallback()
-
-    #         initial_epoch = last_epoch + 1 if last_epoch is not None else 0
-    #         history = model.fit(st.session_state['trainX'], st.session_state['trainY'], initial_epoch=initial_epoch, epochs=epochs, batch_size=batch_size, validation_split=0.1, callbacks=[early_stopping_callback, model_checkpoint_callback, epoch_time_callback])
-
-    #         st.write("Model training completed.")
-    #         st.session_state['model'] = model
-    #         st.session_state['history'] = history.history
-
-    #     except Exception as e:
-    #         st.write(f"Error training model: {e}")
-
-# Page 3: Evaluate model
-def page_evaluate():
-    if 'model' not in st.session_state:
-        st.warning("Please complete the model training step first.")
-        return
-
-    st.header("Step 4: Evaluate Model")
-    model = st.session_state['model']
-    testX, testY = st.session_state['testX'], st.session_state['testY']
-
-    # Make predictions
-    predictions = model.predict(testX)
-
-    # Inverse transform the predictions and actual values
-    scaler = st.session_state['scaler']
-    target_index = st.session_state['columns_to_scale'].index(st.session_state['target_column'])
-    testY_inv = scaler.inverse_transform(np.insert(np.zeros((testY.shape[0], len(st.session_state['columns_to_scale']) - 1)), target_index, testY, axis=1))[:, target_index]
-    predictions_inv = scaler.inverse_transform(np.insert(np.zeros((predictions.shape[0], len(st.session_state['columns_to_scale']) - 1)), target_index, predictions, axis=1))[:, target_index]
-
-    # Calculate evaluation metrics
-    mae = np.mean(np.abs(testY_inv - predictions_inv))
-    rmse = np.sqrt(np.mean((testY_inv - predictions_inv)**2))
-
-    st.write(f"Mean Absolute Error: {mae:.2f}")
-    st.write(f"Root Mean Squared Error: {rmse:.2f}")
-
-    # Plot predictions vs actual values
-    fig, ax = plt.subplots()
-    ax.plot(testY_inv, label='Actual')
-    ax.plot(predictions_inv, label='Predicted')
-    ax.set_title("Actual vs Predicted")
-    ax.legend()
-    st.pyplot(fig)
-
-# Streamlit app layout
-st.sidebar.title("LSTM Time Series Forecasting")
-page = st.sidebar.selectbox("Select a page", ["Load and Preprocess Data", "Build and Train Model", "Evaluate Model"])
-
-if page == "Load and Preprocess Data":
-    page_load_and_preprocess()
-elif page == "Build and Train Model":
-    page_build_and_train()
-elif page == "Evaluate Model":
-    page_evaluate()
+if __name__ == "__main__":
+    main()
 
 
 
